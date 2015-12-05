@@ -33,6 +33,8 @@ HFSPlus.efi can be downloaded from https://github.com/JrCs/CloverGrowerPro/tree/
 
 * You'll need to have the *.kext* file specific to **YOUR** hardware in *Kexts*.  The script will iterate over all the available files in the *Kexts* folder that end in "*.kext*" and will copy them to the appropriate directory on the target disk, then apply the correct owner/permissions to each.  At some point, I may rewrite parts of the script to allow for other sub folders that could be displayed as a list similar to the items above, that will allow for different kexts for different hardware, but I just haven't yet.
 
+You can find *FakeSMC.kext* bundled with the *HWSensors* at https://github.com/kozlek/HWSensors or http://sourceforge.net/projects/hwsensors/
+
 
 ***Quick Start***
 
