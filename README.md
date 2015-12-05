@@ -25,7 +25,8 @@ The script just looks for the "Clover" prefix when searching for them.
 
 - NOTE - You can have multiple config plists in *Resources*.  The script just looks for the "*config*" prefix when searching for them.  This feature is helpful if you build installers for several different sets of hardware, you could have *config-mobo1.plist*, *config-mobo2.plist*, etc.
 
-3. You'll need to have an "*HFSPlus.efi*" file in *Resources*.  I cannot distribute that file for copyright reasons, but you can search for it online.
+3. You'll need to have an "*HFSPlus.efi*" file in *Resources*.
+HFSPlus.efi can be downloaded from https://github.com/JrCs/CloverGrowerPro/tree/master/Files/HFSPlus/X64
 
 - NOTE - You can have multiple HFSPlus files in Resources.  The script just looks for the "*HFSPlus*" prefix when searching for them.  I just included this in case a newer version of "*HFSPlus.efi*" emerges that may have some compatibility issues for certain hardware.
 
