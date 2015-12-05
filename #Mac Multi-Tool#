@@ -1,0 +1,1419 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
+DIR="$DIR/Resources"
+
+installerName="Install OS X El Capitan.app"
+installerVersion="10.11"
+
+configLocation="EFI/CLOVER"
+configName="config.plist"
+
+kextLocation="EFI/CLOVER/kexts" # Then installerVersion
+kextOwner="root:wheel"
+kextModes="755"
+
+HFSLocation="EFI/CLOVER/drivers64UEFI"
+HFSName="HFSPlus.efi"
+
+vboxLocation="EFI/CLOVER/drivers64UEFI"
+vboxName="VBoxHfs-64.efi"
+
+usbName=""
+usbMount=""
+usbIdent=""
+usbDisk=""
+usbPart=""
+
+insMED=""
+insDir=""
+
+isAuto="false"
+
+function resetVars () {
+	usbName=""
+	usbMount=""
+	usbIdent=""
+	usbDisk=""
+	usbPart=""
+
+	insMED=""
+	insDir=""
+
+	isAuto="false"
+}
+
+function setDisk () {
+	usbName="$( getDiskName "$1" )"
+	usbMount="$( getDiskMountPoint "$1" )"
+	usbIdent="$( getDiskIdentifier "$1" )"
+	usbDisk="$( getDiskNumber "$1" )"
+	usbPart="$( getPartitionNumber "$1" )"
+}
+
+function displayWarning () {
+	clear
+	echo \#\#\# WARNING \#\#\#
+	echo 
+	echo This script is provided with NO WARRANTY whatsoever.
+	echo I am not responsible for ANY problems or issues you
+	echo may encounter, or any damages as a result of running
+	echo this script.
+	echo 
+	echo To ACCEPT this warning and FULL RESPONSIBILITY for
+	echo using this script, press [enter].
+	echo 
+	read -p "To REFUSE, close this script."
+	mainMenu
+	
+
+}
+
+function customQuit () {
+	clear
+	echo \#\#\# Mac Multi-Tool \#\#\#
+	echo by CorpNewt
+	echo 
+	echo Thanks for testing it out, for bugs/comments/complaints
+	echo send me a message on Reddit:
+	echo 
+	echo www.reddit.com/u/corpnewt
+	echo 
+	echo Have a nice day/night!
+	echo 
+	echo 
+	exit $?
+}
+
+function mainMenu () {
+	resetVars
+	# Main Menu
+	clear
+	echo \#\#\# Mac Multi-Tool \#\#\#
+	echo 
+	echo 1. Installer Menu
+	echo 2. Mount EFI Partition
+	echo 3. Get UUID
+	echo 
+	echo ?. Help
+	echo 
+	echo Q. Quit
+	echo 
+	echo Please select a task:
+	echo 
+	read menuChoice
+
+	shopt -s nocasematch
+	if [[ "$menuChoice" == "1" ]]; then
+		installerMenu
+	elif [[ "$menuChoice" == "2" ]]; then
+		EFIMenu
+	elif [[ "$menuChoice" == "3" ]]; then
+		UUIDMenu
+	elif [[ "$menuChoice" == "q" ]]; then
+		customQuit
+	elif [[ "$menuChoice" == "?" ]]; then
+		mainHelp
+	fi
+	mainMenu
+}
+
+function mainHelp () {
+	# Give some info on the main menu options.
+	clear
+	echo \#\#\# Main Menu Help \#\#\#
+	echo 
+	echo 1. Installer Menu - This takes us to the main
+	echo installer menu.  There will be some other options
+	echo there.  For more installer menu help, from the main
+	echo menu, select option 1, then from the installer menu
+	echo select option \"?\".
+	echo 
+	echo 2. Mount EFI Partition - This option allows you to
+	echo mount the EFI partition of a specific drive.  It is
+	echo useful if you have your Clover installation on the EFI
+	echo partition instead of an EFI folder on the root of the
+	echo drive, and you need to change something.
+	echo 
+	echo 3. Get UUID - This option allows us to obtain the
+	echo UUID of each partition in a selected disk.  This is
+	echo useful if you want to hide certain partitions
+	echo \(specifically Recover Partitions\) from Clover so
+	echo they don\'t clutter up your Clover boot screen.
+	echo 
+	read -p "Press [enter] to return to the main menu..."
+	mainMenu
+}
+
+function installerMenu () {
+	resetVars
+	clear
+	echo \#\#\# Mac OS X Installer Creator \#\#\#
+	echo 
+	echo If you are NOT installing Mac OS X Version: \"$installerVersion,\"
+	echo please select \"Change OS Version\".  It will ask you for the
+	echo name of the \"Install OS X\" application, and the OS version
+	echo you are trying to install.
+	echo 
+	echo Current Install Version: \""$installerName"\" - $installerVersion
+	echo 
+	echo 1. Auto-Create USB Installer
+	echo 2. Advanced Installer Menu
+	echo 
+	echo ?. Help
+	echo 
+	echo O. Change OS X Install Version
+	echo M. Main Menu
+	echo Q. Quit
+	echo 
+	echo Please select a task:
+	echo 
+	read menuChoice
+
+	shopt -s nocasematch
+	if [[ "$menuChoice" == "m" ]]; then
+		mainMenu
+	elif [[ "$menuChoice" == "q" ]]; then
+		customQuit
+	elif [[ "$menuChoice" == "o" ]]; then
+		chooseInstall
+	elif [[ "$menuChoice" == "1" ]]; then
+		autoCreate
+	elif [[ "$menuChoice" == "2" ]]; then
+		expertInstallMenu
+	elif [[ "$menuChoice" == "?" ]]; then
+		installerHelp
+	fi
+	installerMenu
+}
+
+function installerHelp () {
+	clear
+	echo \#\#\# Installer Menu Help \#\#\#
+	echo 
+	echo 1. Auto-Create USB Installer - This option is the same as running
+	echo options 1-6 in the Advanced Installer Menu.  It creates the USB
+	echo installer, helps you install Clover, copies a config.plist over,
+	echo copies HFSPlus.efi, removes VBoxHfs-64.efi, and installs kernel
+	echo extensions for you.  For more info on each of these processes,
+	echo select option 2 from the Installer Menu, and then choose option \"?\".
+	echo 
+	echo 2. Advanced Installer Menu - This shows the Advanced Installer Menu
+	echo which has the previously mentioned \"options 1-6\" above.
+	echo 
+	echo O. Change OS Version - This allows for the creation of future
+	echo versions of Mac OS X Installers using this script without rewriting
+	echo anything.  It will ask you for two things: 1. The name of the
+	echo \"Install OS X\" application, and the OS Version.
+	echo Example:  For El Capitan, your installer application is
+	echo \"Install OS X El Capitan.app\", and the OS Version is \"10.11\"
+	echo 
+	echo M. Main Menu - Return to the main menu.
+	echo 
+	read -p "Press [enter] to return to the installer menu..."
+	installerMenu
+}
+
+function expertInstallMenu () {
+	clear
+	echo \#\#\# Advanced Installer Menu \#\#\#
+	echo 
+	echo These options allow you to perform the individual steps
+	echo to create a USB Installer.  Helpful if you only need to
+	echo perform a part of the installation.  If you select the
+	echo options \(1-6\) one at a time in order, you perform the
+	echo same actions of the Installer Menu\'s \"Auto-Create\"
+	echo function.
+	echo 
+	echo 1. Create USB Installer ONLY
+	echo 2. Install Clover
+	echo 3. Copy Config.plist
+	echo 4. Copy HFSPlus.efi
+	echo 5. Remove VBoxHfs-64.efi
+	echo 6. Install Kexts
+	echo 
+	echo ?. Help
+	echo 
+	echo I. Installer Menu
+	echo M. Main Menu
+	echo Q. Quit
+	echo 
+	echo Please select a task:
+	echo 
+	read menuChoice
+
+	shopt -s nocasematch
+	if [[ "$menuChoice" == "1" ]]; then
+		createUSB
+	elif [[ "$menuChoice" == "2" ]]; then
+		installClover
+	elif [[ "$menuChoice" == "3" ]]; then
+		copyConfig
+	elif [[ "$menuChoice" == "4" ]]; then
+		copyHFS
+	elif [[ "$menuChoice" == "5" ]]; then
+		removeVBox
+	elif [[ "$menuChoice" == "6" ]]; then
+		copyKexts
+	elif [[ "$menuChoice" == "i" ]]; then
+		installerMenu
+	elif [[ "$menuChoice" == "m" ]]; then
+		mainMenu
+	elif [[ "$menuChoice" == "q" ]]; then
+		customQuit
+	elif [[ "$menuChoice" == "?" ]]; then
+		expertHelp
+	fi
+	expertInstallMenu
+}
+
+function expertHelp () {
+	clear
+	echo \#\#\# Advanced Installer Menu Help \#\#\#
+	echo 
+	echo 1. Create USB Installer ONLY - This will go through
+	echo the steps to create the USB installer, but DOES NOT
+	echo go through any steps to install a bootloader, config.plist,
+	echo HFSPlus.efi, or any kexts.  Use this if you just need a
+	echo bootable OS X USB and plan to do the rest yourself.
+	echo 
+	echo 2. Install Clover - This searches through the Resources
+	echo folder in the same directory as this script for any files
+	echo that begin with \"Clover\".  It will then display a numbered
+	echo list of them and allow you to pick which is opened.  Useful
+	echo if you need to keep different versions of Clover for
+	echo different hardware or compatibility purposes.
+	echo 
+	echo 3. Copy Config.plist - This searches through the Resources
+	echo folder in the same directory as this script for any files
+	echo that begin with \"config\".  It will then display a numbered
+	echo list of them and allow you to pick which is copied.  Useful
+	echo if you keep a number of config.plists for different hardware
+	echo or compatibility reasons.  It will overwrite whatever 
+	echo config.plist is already on the selected drive when copied.
+	echo 
+	read -p "Press [enter] to display options 4-6..."
+	clear
+	echo \#\#\# Advanced Installer Menu Help \#\#\#
+	echo 
+	echo 4. Copy HFSPlus.efi - This searches through the Resources
+	echo folder in the same directory as this script for any files
+	echo that begin with \"HFSPlus\".  It will then display a numbered
+	echo list of them and allow you to pick which is copied.  Useful
+	echo if you keep a number of HFSPlus.efi\'s for different hardware
+	echo or compatibility reasons.  It will overwrite whatever 
+	echo HFSPlus.efi is already on the selected drive when copied.
+	echo 
+	echo 5. Remove VBoxHfs-64.efi - This deletes the VBoxHfs-64.efi
+	echo file located at /EFI/CLOVER/drivers64UEFI/ in the selected
+	echo drive.
+	echo 
+	echo 6. Install Kexts - This copies all of the files ending in
+	echo \".kext\" from /PathToThisScript/Resources/Kexts/ to the 
+	echo appropriate Clover kexts folder on the selected disk.  It
+	echo will also set the owner to \"root:wheel\" and the permissions
+	echo to \"755\" for each copied kext.  Please put the necessary
+	echo kexts for YOUR hardware into this directory.  FakeSMC.kext is
+	echo the only ABSOLUTELY necessary kext for every installation.
+	echo 
+	read -p "Press [enter] to return to the advanced installer menu..."
+	expertInstallMenu
+}
+
+function chooseInstall () {
+	clear
+	echo \#\#\# Change OS X Install Version \#\#\#
+	echo 
+	echo Current Install Version: \""$installerName"\" - $installerVersion
+	echo 
+	echo 1. \"Install OS X El Capitan.app\" - 10.11
+	echo 2. \"Install OS X Yosemite.app\" - 10.10
+	echo 3. \"Install OS X Mavericks.app\" - 10.9
+	echo 4. Input Custom
+	echo 
+	echo ?. Help
+	echo 
+	echo I. Installer Menu
+	echo M. Main Menu
+	echo Q. Quit
+	echo 
+	echo Please select an option:
+	echo 
+	read menuChoice
+
+	shopt -s nocasematch
+	if [[ "$menuChoice" == "i" ]]; then
+		installerMenu
+	elif [[ "$menuChoice" == "m" ]]; then
+		mainMenu
+	elif [[ "$menuChoice" == "q" ]]; then
+		customQuit
+	elif [[ "$menuChoice" == "?" ]]; then
+		installVersionHelp
+	elif [[ "$menuChoice" == "1" ]]; then
+		installerName="Install OS X El Capitan.app"
+		installerVersion="10.11"
+		installerMenu
+	elif [[ "$menuChoice" == "2" ]]; then
+		installerName="Install OS X Yosemite.app"
+		installerVersion="10.10"
+		installerMenu
+	elif [[ "$menuChoice" == "3" ]]; then
+		installerName="Install OS X Mavericks.app"
+		installerVersion="10.9"
+		installerMenu
+	elif [[ "$menuChoice" == "4" ]]; then
+		manualInstallerName
+	else
+		chooseInstall
+	fi
+
+}
+
+function installVersionHelp () {
+	clear
+	echo \#\#\# Change OS X Install Version Help \#\#\#
+	echo 
+	echo Current Install Version - This displays the currently
+	echo selected install version.  If you are trying to install
+	echo a different version, you need to select it from the
+	echo presets 1-3.  Alternatively you can select option 4 to
+	echo manually input the name of the\ \"Install OS X\"
+	echo application and OS Version.
+	echo 
+	read -p "Press [enter] to return to the change OS X install version menu..."
+	chooseInstall
+}
+
+function manualInstallerName () {
+	clear
+	echo \#\#\# Mac OS X Installer Creator \#\#\#
+	echo 
+	echo Enter the name of the \"Install OS X\" application you are using.
+	echo Make sure the name ends in \".app\" - IF it does not, \".app\"
+	echo will be appended.
+	echo 
+	echo \* Note, ONLY OS 10.9+ is supported \*
+	echo 
+	read installerName
+
+	if [[ "$installerName" == "" ]]; then
+		manualInstallerName
+	fi
+	# Let's get the last 4 characters of our name
+	# and see if they are .app, if not, append
+	# .app
+	local i=$(( ${#installerName} - 4 ))
+	local __nameCheck="${installerName:$i:4}"
+
+	shopt -s nocasematch
+	if [[ ! "$__nameCheck" == ".app" ]]; then
+		installerName="$installerName"".app"
+	fi
+	manualInstallerVersion
+}
+
+function manualInstallerVersion () {
+	clear
+	echo \#\#\# Mac OS X Installer Creator \#\#\#
+	echo 
+	echo Enter the name of the OS Version you are using.
+	echo \* Note, ONLY OS 10.9+ is supported \*
+	echo 
+	read installerVersion
+
+	if [[ "$installerVersion" == "" ]]; then
+		manualInstallerVersion
+	fi
+	chooseInstall
+}
+
+function autoCreate () {
+	# This goes through all the steps
+	# First we check for root privileges
+	checkRoot "Auto"
+	isAuto="true"
+
+	createUSB
+	installClover
+	copyConfig
+	copyHFS
+	removeVBox
+	copyKexts
+
+	mainMenu
+}
+
+function checkAuto () {
+	# Check if isAuto is false, and if so,
+	# go to main menu
+	if [[ "$isAuto" == "false" ]]; then
+		mainMenu
+	fi
+}
+
+function createUSB () {
+	checkRoot "USB"
+	clear
+	echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Warning!
+	echo 
+	echo Please make sure you have connected an 8GB+ \(16GB recommended\)
+	echo USB flash drive and a copy of the \"$installerName\" application to 
+	echo continue!
+	echo 
+	echo This script works ONLY with Mac OS X 10.9+
+	echo 
+	echo 
+	read -p "Press [enter] to continue..."
+
+	clear
+
+	echo Please drag and drop the \"$installerName\" application
+	echo here or type the path:
+	echo 
+	echo Just press [enter] if \"$installerName\" is located in
+	echo /Applications/
+	echo 
+	echo 
+	read insDir
+
+	if [ "$insDir" == "" ]; then
+		insDir="/Applications/$installerName"
+	fi
+
+	if [ ! -e "$insDir/Contents/Resources/createinstallmedia" ]; then
+		clear
+		echo Required files were missing in the installer.
+		echo 
+		echo "$insDir/Contents/Resources/createinstallmedia"
+		echo Does not exist.
+		echo 
+		exit
+	fi
+
+	insMED="$insDir/Contents/Resources/createinstallmedia"
+
+	clear
+	echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Please drag and drop \(or type the name\) the USB drive you would
+	echo like to use as the installer:
+	echo NOTE!  The USB drive will be erased and all files deleted!
+	echo 
+	ls /volumes/
+	echo 
+	echo 
+	read usb
+
+	if [[ "$( isDisk "$usb" )" != "0" ]]; then
+		if [[ "$( volumeName "$usb" )" ]]; then
+			# We have the path to the mount point
+			eraseUSB "$( volumeName "$usb" )"
+		else
+			# No disk available there
+			clear
+			echo \#\#\# Create USB Installer \#\#\#
+			echo 
+			echo \""$usb"\" is not a valid disk name, identifier
+			echo or mount point.
+			echo 
+			read -p "Press [enter] to return to the main menu..."
+			mainMenu
+		fi
+	else
+		# Valid disk
+		eraseUSB "$usb"
+	fi
+
+}
+
+function eraseUSB () {
+	# Set up some info for later use
+	setDisk "$1"
+
+	# Unmount the USB drive
+	clear
+	echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Unmounting "$usbName"...
+	echo 
+
+	checkMount "$usbMount"
+
+	# Reformat it to Journaled HFS+ with a GUID Partition Table
+	clear
+	echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Formatting disk disk"$usbDisk" to JHFS+ with GUID partition
+	echo table...
+
+	diskutil partitionDisk /dev/disk"$usbDisk" GPT JHFS+ "$usbName" 100%
+
+	# Run the createinstallmedia program
+	clear
+	echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Creating Installer \(This will take awhile\)...
+	echo 
+	echo "$insMED" --volume "$usbMount" --applicationpath "$insDir" --no interaction
+	echo 
+
+	"$insMED" --volume "$usbMount" --applicationpath "$insDir" --no interaction
+
+
+	echo 
+
+	#Get disk info again since the volume name is most likely
+	#different than before...
+
+	local newName="$( getDiskName "$usbIdent" )"
+	clear
+	echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	if [[ "$newName" != "$usbName" ]]; then
+		echo \""$usbName"\" has been changed to \""$newName"\"...
+		usbName="$newName"
+		echo 
+	fi
+	sleep 3
+	checkAuto
+}
+
+function checkMount () {
+	#echo Checking mount status...
+	# We SHOULD only ever get here after confirming we have a valid disk
+	if [ "$( getDiskMounted "$1" )" == "Yes" ]; then
+		echo "$( getDiskName "$1" )" is still mounted.  Unmounting...
+		unmount "$1"
+	fi
+}
+
+function unmount () {
+	#repeats to unmount a stuck disk
+	#echo Unmounting Disk...
+	hdiutil unmount -force "$( getDiskMountPoint "$1" )"
+	checkMount "$1"
+
+}
+
+function installClover () {
+	# This will iterate through any installations of clover in the 
+	# Resources folder and show them - then open whichever you choose
+	clear
+	echo \#\#\# Install Clover \#\#\#
+	echo 
+	i=0
+	for entry in "$DIR"/*
+	do
+		local __tempEntry="$(basename "$entry" )"
+		local __currentFile=${__tempEntry:0:6}
+		shopt -s nocasematch
+		if [[ "$__currentFile" == "Clover" ]]; then
+			i="$( expr $i + 1 )"
+			cloverList[$i]="$(basename "$entry" )"
+			echo "$i". "$__tempEntry"
+		fi
+	done
+
+	if [[ "$i" == "0" ]]; then
+		echo No Clover entries in \""$DIR"\".
+		echo 
+		read -p "Press [enter] to continue..."
+	else
+		echo 
+		echo Please select the clover version you\'d like to install:
+		echo 
+		read cloverIndex
+
+		if [[ "$cloverIndex" == "" ]]; then
+			cloverIndex=1
+		fi
+
+		if (( $cloverIndex < 1 )); then
+			installClover
+		elif (( $cloverIndex > $i )); then
+			installClover
+		else
+			# We're within the range of our indices
+			clear
+			echo \#\#\# Install Clover \#\#\#
+			echo 
+			echo Opening "${cloverList["$cloverIndex"]}"...
+			open "$DIR"/"${cloverList["$cloverIndex"]}"
+			echo 
+			echo Select these options during install:
+			echo 
+			echo - - Bootloader
+			echo - - - - Install boot0af in MBR
+			echo - -
+			echo - - CloverEFI
+			echo - - - - CloverEFI 64-bits SATA
+			echo - -
+			echo - - Drivers64UEFI
+			echo - - - - EmuVariableUefi-64 \(Skip this for LastBootDevice\)
+			echo - - - - OsxAptioFix2Drv-64
+			echo - - - - ParitionDxe-64
+			echo 
+			read -p "Press [enter] after Clover installation to continue..."
+			echo 
+		fi
+	fi
+	checkAuto
+}
+
+function copyConfig () {
+	checkRoot "Config"
+	clear
+	echo \#\#\# Copy Config.plist \#\#\#
+	echo 
+	# This will iterate through any installations of config*.plist in the 
+	# Resources folder and show them - then open whichever you choose
+	i=0
+	for entry in "$DIR"/*
+	do
+		local __tempEntry="$(basename "$entry" )"
+		local __currentFile=${__tempEntry:0:6}
+		shopt -s nocasematch
+		if [[ "$__currentFile" == "config" ]]; then
+			i="$( expr $i + 1 )"
+			configList[$i]="$(basename "$entry" )"
+			configPath[$i]="$entry"
+			echo "$i". "$__tempEntry"
+		fi
+	done
+	if [[ "$i" == "0" ]]; then
+		echo No Config.plist entries in \""$DIR"\".
+		echo 
+		read -p "Press [enter] to continue..."
+	else
+		echo 
+		echo Please select the config plist you\'d like to install:
+		echo 
+		read configIndex
+
+		if [[ "$configIndex" == "" ]]; then
+			configIndex=1
+		fi
+
+		if (( $configIndex < 1 )); then
+			copyConfig
+		elif (( $configIndex > $i )); then
+			copyConfig
+		else
+			copyTo "${configPath["$configIndex"]}" "$configLocation" "$configName"
+		fi
+	fi
+	checkAuto
+}
+
+function copyHFS () {
+	checkRoot "HFS"
+	clear
+	echo \#\#\# Copy HFSPlus.efi \#\#\#
+	echo 
+	# This will iterate through any installations of HFSPlus.efi in the 
+	# Resources folder and show them - then open whichever you choose
+	i=0
+	for entry in "$DIR"/*
+	do
+		local __tempEntry="$(basename "$entry" )"
+		local __currentFile=${__tempEntry:0:7}
+		shopt -s nocasematch
+		if [[ "$__currentFile" == "HFSPlus" ]]; then
+			i="$( expr $i + 1 )"
+			hfsList[$i]="$(basename "$entry" )"
+			hfsPath[$i]="$entry"
+			echo "$i". "$__tempEntry"
+		fi
+	done
+	if [[ "$i" == "0" ]]; then
+		echo No HFSPlus.efi entries in \""$DIR"\".
+		echo 
+		read -p "Press [enter] to continue..."
+	else
+		echo 
+		echo Please select the HFSPlus file you\'d like to install:
+		echo 
+		read hfsIndex
+
+		if [[ "$hfsIndex" == "" ]]; then
+			hfsIndex=1
+		fi
+
+		if (( $hfsIndex < 1 )); then
+			copyHFS
+		elif (( $hfsIndex > $i )); then
+			copyHFS
+		else
+			copyTo "${hfsPath["$hfsIndex"]}" "$HFSLocation" "$HFSName"
+		fi
+	fi
+	checkAuto
+}
+
+function copyTo () {
+	# This will copy variable 1 to location 2
+	local __item="$1"
+	local __loc="$2"
+	local __endName="$3"
+
+	# Let's check if we have a disk selected
+	# already and install there.
+	if [[ "$usbIdent" == "" ]]; then
+		diskPrompt
+		copyTo "$1" "$2" "$3"
+	else
+		setDisk "$usbIdent"
+		if [[ "$usbMount" == "/" ]]; then
+			usbMount=""
+		fi
+		# Get current disk mount point - up to date
+		# Check for install path on main disk
+		if [[ ! -d "$usbMount/$__loc" ]]; then
+			# install path not on main disk, let's try EFI
+			local __EFID="$( getEFIIdentifier "$usbIdent" )"
+			if [[ "$__EFID" == "" ]]; then
+				# No EFI partition, no luck.
+				clear
+				echo \#\#\# ERROR \#\#\#
+				echo 
+				echo Could not copy \""$__item"\" to:
+				echo \""$usbMount/$__loc"\".
+				echo Destination does not exist.
+				echo 
+				read -p "Press [enter] to continue..."
+			else
+				# EFI Partition, let's mount it.
+				diskutil mount "$__EFID" &>/dev/null
+				local __efiMount="$( getDiskMountPoint "$__EFID" )"
+				# Check again for folder on EFI partition
+				if [[ ! -d "$__efiMount/$__loc" ]]; then
+					# Not on EFI partition, no luck.
+					clear
+					echo \#\#\# ERROR \#\#\#
+					echo 
+					echo Could not copy \""$__item"\" to:
+					echo \""$usbMount/$__loc"\", or
+					echo \""$__efiMount/$__loc"\".
+					echo Destination does not exist.
+					echo 
+					read -p "Press [enter] to continue..."
+				else
+					# Found the location on EFI partition, copy.
+					clear
+					echo \#\#\# Copying "$__endName" \#\#\#
+					echo 
+					echo Copying "$__item" to "$__efiMount/$__loc/$__endName"...
+					echo 
+					cp -Rf "$__item" "$__efiMount/$__loc/$__endName"
+					echo Done.
+					sleep 3
+				fi
+			fi
+		else
+			# Install path is on main disk
+			clear
+			echo \#\#\# Copying "$__endName" \#\#\#
+			echo 
+			echo Copying "$__item" to "$usbMount/$__loc/$__endName"...
+			echo 
+			cp -Rf "$__item" "$usbMount/$__loc/$__endName"
+			echo Done.
+			sleep 3
+		fi
+	fi
+}
+
+function copyToAndSetPermissions () {
+	# This will copy variable 1 to location 2
+	local __item="$1"
+	local __loc="$2"
+	local __endName="$3"
+	local __owner="$4"
+	local __modes="$5"
+
+	# Let's check if we have a disk selected
+	# already and install there.
+	if [[ "$usbIdent" == "" ]]; then
+		diskPrompt
+		copyToAndSetPermissions "$@"
+	else
+		setDisk "$usbIdent"
+		if [[ "$usbMount" == "/" ]]; then
+			usbMount=""
+		fi
+		# Get current disk mount point - up to date
+		# Check for install path on main disk
+		if [[ ! -d "$usbMount/$__loc" ]]; then
+			# install path not on main disk, let's try EFI
+			local __EFID="$( getEFIIdentifier "$usbIdent" )"
+			if [[ "$__EFID" == "" ]]; then
+				# No EFI partition, no luck.
+				echo Could not copy \""$__item"\" to:
+				echo \""$usbMount/$__loc"\".
+				echo Destination does not exist.
+				echo 
+			else
+				# EFI Partition, let's mount it.
+				diskutil mount "$__EFID" &>/dev/null
+				local __efiMount="$( getDiskMountPoint "$__EFID" )"
+				# Check again for folder on EFI partition
+				if [[ ! -d "$__efiMount/$__loc" ]]; then
+					# Not on EFI partition, no luck.
+					echo Could not copy \""$__item"\" to:
+					echo \""$usbMount/$__loc"\", or
+					echo \""$__efiMount/$__loc"\".
+					echo Destination does not exist.
+					echo 
+				else
+					# Found the location on EFI partition, copy.
+					echo Copying "$__item" to "$__efiMount/$__loc/$__endName"...
+					echo 
+					cp -Rf "$__item" "$__efiMount/$__loc/"
+					chown -R "$__owner" "$__efiMount/$__loc/$__endName"
+					chmod -R "$__modes" "$__efiMount/$__loc/$__endName"
+					echo 
+				fi
+			fi
+		else
+			# Install path is on main disk
+			echo Copying "$__item" to "$usbMount/$__loc/$__endName"...
+			echo 
+			cp -Rf "$__item" "$usbMount/$__loc/$__endName"
+			chown -R "$__owner" "$usbMount/$__loc/$__endName"
+			chmod -R "$__modes" "$usbMount/$__loc/$__endName"
+			echo 
+		fi
+	fi
+}
+
+function removeVBox () {
+	checkRoot "VBox"
+	removeFrom "$vboxName" "$vboxLocation"
+	checkAuto
+}
+
+function removeFrom () {
+	# This will remove variable 1 from location 2
+	local __item="$1"
+	local __loc="$2"
+
+	# Let's check if we have a disk selected
+	# already and start there.
+	if [[ "$usbIdent" == "" ]]; then
+		diskPrompt
+		removeFrom "$1" "$2"
+	else
+		setDisk "$usbIdent"
+		if [[ "$usbMount" == "/" ]]; then
+			usbMount=""
+		fi
+		# Get current disk mount point - up to date
+		# Check for install path on main disk
+		if [[ ! -e "$usbMount/$__loc/$__item" ]]; then
+			# install path not on main disk, let's try EFI
+			local __EFID="$( getEFIIdentifier "$usbIdent" )"
+			if [[ "$__EFID" == "" ]]; then
+				# No EFI partition, no luck.
+				clear
+				echo \#\#\# ERROR \#\#\#
+				echo 
+				echo Could not remove \""$__item"\" from:
+				echo \""$usbMount/$__loc"\".
+				echo File does not exist.
+				echo 
+				read -p "Press [enter] to continue..."
+			else
+				# EFI Partition, let's mount it.
+				diskutil mount "$__EFID" &>/dev/null
+				local __efiMount="$( getDiskMountPoint "$__EFID" )"
+				# Check again for folder on EFI partition
+				if [[ ! -e "$__efiMount/$__loc/$__item" ]]; then
+					# Not on EFI partition, no luck.
+					clear
+					echo \#\#\# ERROR \#\#\#
+					echo 
+					echo Could not remove \""$__item"\" from:
+					echo \""$usbMount/$__loc"\", or
+					echo \""$__efiMount/$__loc"\".
+					echo File does not exist.
+					echo 
+					read -p "Press [enter] to continue..."
+				else
+					# Found the location on EFI partition, copy.
+					clear
+					echo \#\#\# Removing "$__item" \#\#\#
+					echo 
+					echo Removing "$__item" from "$__efiMount/$__loc"...
+					echo 
+					rm -Rf "$__efiMount/$__loc/$__item"
+					echo Done.
+					sleep 3
+				fi
+			fi
+		else
+			# Install path is on main disk
+			clear
+			echo \#\#\# Removing "$__item" \#\#\#
+			echo 
+			echo Removing "$__item" from "$usbMount/$__loc"...
+			echo 
+			rm -Rf "$usbMount/$__loc/$__item"
+			echo Done.
+			sleep 3
+		fi
+	fi
+}
+
+function copyKexts () {
+	checkRoot "Kexts"
+	clear
+	echo \#\#\# Copy Kexts \#\#\#
+	echo 
+	# This will iterate through any kernel extensions in the 
+	# Resources/Kexts/ folder and then install them
+	i=0
+	for entry in "$DIR"/Kexts/*
+	do
+		# Let's get the extension of the file
+		local extension=$([[ "$entry" = *.* ]] && echo ".${entry##*.}" || echo '')
+		shopt -s nocasematch
+		if [[ "$extension" == ".kext" ]]; then
+			# We found a kext, let's show it
+			copyToAndSetPermissions "$entry" "$kextLocation/$installerVersion" "$(baseName "$entry" )" "$kextOwner" "$kextModes"
+			# item locaion endname
+		fi
+	done
+	echo Done.
+	sleep 3
+	checkAuto
+}
+
+function diskPrompt () {
+	# This will prompt us for a target disk, then load up
+	# the usbXXXX variables with the appropriate info and
+	# return 0 on succes, and 1 on failure.
+	clear
+	echo \#\#\# Select Disk \#\#\#
+	echo 
+	echo Please drag and drop \(or type the name\) the disk you would
+	echo like to select:
+	echo 
+	ls /volumes/
+	echo 
+	echo 
+	read usb
+
+	if [[ "$( isDisk "$usb" )" != "0" ]]; then
+		if [[ "$( volumeName "$usb" )" ]]; then
+			# We have a valid disk
+			usb="$( volumeName "$usb" )"
+			setDisk "$usb"
+		else
+			# No disk available there
+			clear
+			echo \#\#\# Select Disk \#\#\#
+			echo 
+			echo \""$usb"\" is not a valid disk name, identifier
+			echo or mount point.
+			echo 
+			read -p "Press [enter] to return to the main menu..."
+			mainMenu
+		fi
+	else
+		# Valid disk
+		setDisk "$usb"
+	fi
+
+}
+
+function checkRoot () {
+	if [[ "$(whoami)" != "root" ]]; then
+		clear
+		echo This script requires root privileges.
+		echo Please enter your admin password to continue.
+		echo 
+		sudo "$0" "$1" "$installerName" "$installerVersion"
+		exit $?
+	fi
+
+}
+
+function UUIDMenu () {
+	clear
+	echo \#\#\# Get UUID \#\#\#
+	echo 
+	echo Available Volumes:
+	echo 
+	ls /Volumes/
+	echo 
+	echo Please enter the volume whose UUID you would like.
+	echo Can be typed as "/Volumes/YourVolume", "YourVolume",
+	echo "diskXsX" or just press [enter] to use the boot drive:
+	echo 
+	read UUIDDrive
+
+	if [[ "$( isDisk "$UUIDDrive" )" != "0" ]]; then
+		if [[ "$( volumeName "$UUIDDrive" )" ]]; then
+			# We have the path to the mount point
+			showUUID "$( volumeName "$UUIDDrive" )"
+		else
+			# No disk available there
+			clear
+			echo \#\#\# Get UUID \#\#\#
+			echo 
+			echo \""$UUIDDrive"\" is not a valid disk name, identifier
+			echo or mount point.
+			echo 
+			read -p "Press [enter] to return to the main menu..."
+			echo 
+			mainMenu
+		fi
+	else
+		# Valid disk
+		showUUID "$UUIDDrive"
+	fi
+
+}
+
+function showUUID () {
+	# This function iterates through the partitions of a disk
+	# and displays the UUID of each partition
+	local __disk=$1
+	local __diskName="$( getDiskName "$__disk" )"
+	local __diskNum="$( getDiskNumber "$__disk" )"
+	clear
+	echo \#\#\# Get UUID on "$__diskName" \#\#\#
+	echo 
+
+	endOfDisk="0"
+	i=1
+
+	echo Displaying UUIDs: "$__diskName":
+	echo 
+
+	while [[ "$endOfDisk" == "0" ]]; do
+		# Iterate through all partitins of the disk, and echo the UUID
+		local __currentDisk=disk"$__diskNum"s"$i"
+		# Check if it's a valid disk, and if not, exit the loop
+		if [[ "$( isDisk "$__currentDisk" )" != "0" ]]; then
+			echo End of partitions.
+			echo 
+			endOfDisk="true"
+			continue
+		fi
+		echo Checking "$__currentDisk"...
+		local __currentDiskType="$( getPartitionType "$__currentDisk" )"
+		local __currentDiskUUID="$( getUUID "$__currentDisk" )"
+		local __currentDiskName="$( getDiskName "$__currentDisk" )"
+
+		echo Currend Disk Name: "$__currentDiskName"
+		echo Current Disk Type: "$__currentDiskType"
+		echo UUID:
+		echo "$__currentDiskUUID"
+
+		i="$( expr $i + 1 )"
+		echo 
+	done
+	echo Done.
+	echo 
+	read -p "Press [enter] to return to the main menu..."
+	mainMenu
+
+}
+
+function EFIMenu () {
+	clear
+	echo \#\#\# Mount EFI Partition \#\#\#
+	echo 
+	echo Available Volumes:
+	echo 
+	ls /Volumes/
+	echo 
+	echo Please enter the volume whose EFI partition you would
+	echo like to mount.  Can be typed as "/Volumes/YourVolume",
+	echo "YourVolume", "diskXsX" or just press [enter] to use
+	echo the boot drive:
+	echo 
+	read EFIDrive
+
+	if [[ "$( isDisk "$EFIDrive" )" != "0" ]]; then
+		if [[ "$( volumeName "$EFIDrive" )" ]]; then
+			# We have the path to the mount point
+			mountEFI "$( volumeName "$EFIDrive" )"
+		else
+			# No disk available there
+			clear
+			echo \#\#\# Mount EFI Partition \#\#\#
+			echo 
+			echo \""$EFIDrive"\" is not a valid disk name, identifier
+			echo or mount point.
+			echo 
+			read -p "Press [enter] to return to the main menu..."
+			mainMenu
+		fi
+	else
+		# Valid disk
+		mountEFI "$EFIDrive"
+	fi
+
+}
+
+function mountEFI () {
+	# This function iterates through the partitions of a disk
+	# and mounts the ones with the "EFI" partition type
+	local __disk=$1
+	local __diskName="$( getDiskName "$__disk" )"
+	local __diskNum="$( getDiskNumber "$__disk" )"
+	clear
+	echo \#\#\# Mounting Partitions on "$__diskName" \#\#\#
+	echo 
+
+	endOfDisk="0"
+	i=1
+
+	echo Searching for EFI partitions on "$__diskName":
+	echo 
+
+	while [[ "$endOfDisk" == "0" ]]; do
+		# Iterate through all partitins of the disk, and mount those that
+		# are EFI
+		local __currentDisk=disk"$__diskNum"s"$i"
+		# Check if it's a valid disk, and if not, exit the loop
+		if [[ "$( isDisk "$__currentDisk" )" != "0" ]]; then
+			echo End of partitions.
+			echo 
+			endOfDisk="true"
+			continue
+		fi
+		echo Checking "$__currentDisk"...
+		local __currentDiskType="$( getPartitionType "$__currentDisk" )"
+
+		echo Current Disk Type: "$__currentDiskType"
+
+		if [[ "$__currentDiskType" == "EFI" ]]; then
+			echo Partition Type is EFI.
+			echo Mounting...
+			diskutil mount "$__currentDisk"
+		fi
+		i="$( expr $i + 1 )"
+		echo 
+	done
+	echo Done.
+	echo 
+	read -p "Press [enter] to return to the main menu..."
+	mainMenu
+}
+
+###################################################
+###               Disk Functions                ###
+###################################################
+
+
+function isDisk () {
+	# This function checks our passed variable
+	# to see if it is a disk
+	# Accepts mount point, diskXsX and an empty variable
+	# If empty, defaults to "/"
+	local __disk=$1
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Here we run diskutil info on our __disk and see what the
+	# exit code is.  If it's "0", we're good.
+	diskutil info "$__disk" &>/dev/null
+	# Return the diskutil exit code
+	echo $?
+}
+
+function volumeName () {
+	# This is a last-resort function to check if maybe
+	# Just the name of a volume was passed.
+	local __disk=$1
+	if [[ ! -d "$__disk" ]]; then
+		if [ -d "/volumes/$__disk" ]; then
+			#It was just volume name
+			echo "/Volumes/$__disk"
+		fi
+	else
+		echo "$__disk"
+	fi
+}
+
+function getDiskMounted () {
+	local __disk=$1
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Output the "Volume Name" of __disk
+	echo "$( diskutil info "$__disk" | grep 'Mounted' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g' )"
+}
+
+function getDiskName () {
+	local __disk=$1
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Output the "Volume Name" of __disk
+	echo "$( diskutil info "$__disk" | grep 'Volume Name' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g' )"
+}
+
+function getDiskMountPoint () {
+	local __disk=$1
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Output the "Mount Point" of __disk
+	echo "$( diskutil info "$__disk" | grep 'Mount Point' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g' )"
+}
+
+function getDiskIdentifier () {
+	local __disk=$1
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Output the "Mount Point" of __disk
+	echo "$( diskutil info "$__disk" | grep 'Device Identifier' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g' )"
+}
+
+function getDiskNumbers () {
+	local __disk=$1
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Output the "Device Identifier" of __disk
+	# If our disk is "disk0s1", it would output "0s1"
+	echo "$( getDiskIdentifier "$__disk" | cut -d k -f 2 )"
+}
+
+function getDiskNumber () {
+	local __disk=$1
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Get __disk identifier numbers
+	local __diskNumbers="$( getDiskNumbers "$__disk" )"
+	# return the first number
+	echo "$( echo "$__diskNumbers" | cut -d s -f 1 )"
+}
+
+function getPartitionNumber () {
+	local __disk=$1
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Get __disk identifier numbers
+	local __diskNumbers="$( getDiskNumbers "$__disk" )"
+	# return the second number
+	echo "$( echo "$__diskNumbers" | cut -d s -f 2 )"	
+}
+
+function getPartitionType () {
+	local __disk=$1
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Output the "Volume Name" of __disk
+	echo "$( diskutil info "$__disk" | grep 'Partition Type' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g' )"
+}
+
+function getEFIIdentifier () {
+	local __disk=$1
+	local __diskName="$( getDiskName "$__disk" )"
+	local __diskNum="$( getDiskNumber "$__disk" )"
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Output the "Device Identifier" for the EFI partition of __disk
+	endOfDisk="0"
+	i=1
+	while [[ "$endOfDisk" == "0" ]]; do
+		# Iterate through all partitions of the disk, and return those that
+		# are EFI
+		local __currentDisk=disk"$__diskNum"s"$i"
+		# Check if it's a valid disk, and if not, exit the loop
+		if [[ "$( isDisk "$__currentDisk" )" != "0" ]]; then
+			endOfDisk="true"
+			continue
+		fi
+
+		local __currentDiskType="$( getPartitionType "$__currentDisk" )"
+
+		if [ "$__currentDiskType" == "EFI" ]; then
+			echo "$( getDiskIdentifier "$__currentDisk" )"
+		fi
+		i="$( expr $i + 1 )"
+	done	
+}
+
+function getUUID () {
+	local __disk=$1
+	# If variable is empty, set it to "/"
+	if [[ "$__disk" == "" ]]; then
+		__disk="/"
+	fi
+	# Output the "Disk / Partition UUID" of __disk
+	echo "$( diskutil info "$__disk" | grep 'Disk / Partition UUID' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g' )"
+}
+
+function diskInfo () {
+	# Echoes some info on the passed disk
+	if [[ "$( isDisk "$1" )" == "0" ]]; then
+		echo Is Disk: YES
+		echo Disk Name: "$( getDiskName "$1" )"
+		echo Mount Point: "$( getDiskMountPoint "$1" )"
+		echo Disk Identifier: "$( getDiskIdentifier "$1" )"
+		echo Disk Numbers: "$( getDiskNumbers "$1" )"
+		echo Disk Number: "$( getDiskNumber "$1" )"
+		echo Partition Number: "$( getPartitionNumber "$1" )"
+	else
+		echo Is Disk: NO
+	fi
+
+}
+
+
+########################################
+###           Script Start           ###
+########################################
+
+# Check if we restarted due to needing sudo permissions
+# and go from there...
+shopt -s nocasematch
+
+# Check if we include os version and etc
+if [[ "$2" != "" ]]; then
+	installerName="$2"
+fi
+if [[ "$3" != "" ]]; then
+	installerVersion="$3"
+fi
+
+if [[ "$1" == "Auto" ]]; then
+	autoCreate
+elif [[ "$1" == "USB" ]]; then
+	createUSB
+elif [[ "$1" == "Config" ]]; then
+	copyConfig
+elif [[ "$1" == "HFS" ]]; then
+	copyHFS
+elif [[ "$1" == "VBox" ]]; then
+	removeVBox
+elif [[ "$1" == "Kexts" ]]; then
+	copyKexts
+else
+	displayWarning
+fi
+
+exit
