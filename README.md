@@ -7,34 +7,11 @@ Mac Multi-Tool is a script I wrote that tries to automate many of the tasks invo
 
 ***Preparation***
 
-Folder Layout:
-
-	+ Script's Parent Folder
-		- #El Cap - Win10 Dual Boot#.txt
-		- #INFO - READ ME#.txt
-		- #Mac Multi-Tool#
-		+ Resources
-			- Clover vX.X rXXXX.pkg
-			- config.plist
-			- HFSPlus.efi
-			+ Kexts
-				- FakeSMC.kext
-				- Other Kexts Your HW Requires
-		+ Extras
-			- #Clover Last Boot Device#.txt
-			- #Hiding Clover Partitions#.txt
-			- MountEFI
-			- Recovery UUID
-
-
-	Key: - = File
-	     + = Folder
-
 Certain folders will be referenced as such in the following portion:
 
-*/Script'sParentFolder/Resources* - will be known as *Resources*
+*/Resources* - will be known as *Resources*
 
-*/Script'sParentFolder/Resources/Kexts* - will be known as *Kexts*	
+*/Resources/Kexts* - will be known as *Kexts*	
 
 
 Before you can use this tool successfully, you'll want to have a few things in order:
