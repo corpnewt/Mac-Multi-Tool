@@ -1,0 +1,60 @@
+#!/bin/bash
+
+clear
+echo Get Recovery Parititon UUID:
+echo 
+ls /volumes/
+echo 
+echo 
+read drive
+
+if [ "$drive" == "" ]; then
+	drive="/"
+fi
+
+if [ ! -d "$drive" ]; then
+	if [ -d "/volumes/$drive" ]; then
+		#It was just volume name
+		drive="/Volumes/$drive"
+	else
+		echo The drive is not a directory or does not exist.
+		exit
+	fi
+fi
+
+#Get disk info for later use...
+diskName="$( diskutil info "$drive" | grep 'Volume Name' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g' )"
+diskNums="$( diskutil info "$drive" | grep 'Device Identifier' | cut -d k -f 2 )"
+disk="$( echo "$diskNums" | cut -d s -f 1 )"
+part="$( echo "$diskNums" | cut -d s -f 2 )"
+
+clear
+
+endOfDisk="0"
+i=1
+
+echo Searching for EFI partitions on "$diskName":
+echo 
+
+while [ "$endOfDisk" == "0" ]; do
+	currentDisk=disk"$disk"s"$i"
+	currentDiskCheck="$( diskutil info $currentDisk )"
+	tempCheck=${currentDiskCheck:0:19}
+	if [ "$tempCheck" == "Could not find disk" ]; then
+		echo End of partitions.
+		echo 
+		endOfDisk="true"
+		continue
+	fi
+	echo Checking "$currentDisk"...
+	currentDiskType="$( diskutil info $currentDisk | grep 'Partition Type' | cut -d : -f 2 | sed -e 's/^[[:space:]]*//' )"
+
+	if [ "$currentDiskType" == "Apple_Boot" ]; then
+		echo Found recovery partition.
+		echo 
+		currentDiskUUID="$( diskutil info $currentDisk | grep 'Disk / Partition UUID' | cut -d : -f 2 | sed -e 's/^[[:space:]]*//' )"
+		echo UUID: $currentDiskUUID
+		echo 
+	fi
+	i="$( expr $i + 1 )"
+done
