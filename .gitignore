@@ -1,0 +1,4 @@
+# Files to always ignore
+.DS_Store
+*.[oa]
+*~
