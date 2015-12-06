@@ -3,6 +3,11 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
 DIR="$DIR/Resources"
 
+# Turn on case-insensitive matching
+shopt -s nocasematch
+# turn on extended globbing
+shopt -s extglob
+
 installerName="Install OS X El Capitan.app"
 installerVersion="10.11"
 
@@ -82,6 +87,8 @@ function customQuit () {
 	echo Have a nice day/night!
 	echo 
 	echo 
+	shopt -u extglob
+	shopt -u nocasematch
 	exit $?
 }
 
@@ -94,6 +101,7 @@ function mainMenu () {
 	echo 1. Installer Menu
 	echo 2. Mount EFI Partition
 	echo 3. Get UUID
+	echo 4. Repair Permissions
 	echo 
 	echo ?. Help
 	echo 
@@ -103,19 +111,111 @@ function mainMenu () {
 	echo 
 	read menuChoice
 
-	shopt -s nocasematch
 	if [[ "$menuChoice" == "1" ]]; then
 		installerMenu
 	elif [[ "$menuChoice" == "2" ]]; then
 		EFIMenu
 	elif [[ "$menuChoice" == "3" ]]; then
 		UUIDMenu
+	elif [[ "$menuChoice" == "4" ]]; then
+		repairPermissions
 	elif [[ "$menuChoice" == "q" ]]; then
 		customQuit
 	elif [[ "$menuChoice" == "?" ]]; then
 		mainHelp
 	fi
 	mainMenu
+}
+
+function repairPermissions () {
+	checkRoot "Permissions"
+	# This will get our OS version, then according
+	# to that, repair permissions.
+	local __osvers="$( sw_vers | grep 'ProductVersion' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g' )"
+	__osvers="$( trimWhitespace "$__osvers" )"
+	local __osMajor="$( echo "$__osvers" | cut -d . -f 1 )"	
+	local __osMinor="$( echo "$__osvers" | cut -d . -f 2 )"
+	
+	if (( $__osMajor > 10 )); then
+		clear
+		echo \#\#\# WARNING \#\#\#
+		echo 
+		echo Your OS version is higher than 10!  This could either
+		echo be a mistake or you are using a script that is WAY out
+		echo of date.  Proceed at your own risk...
+		echo 
+		echo OS 10.11 used /usr/libexec/repair_packages to do this, so
+		echo that is the attempt we\'ll make.
+		echo 
+		echo Press Y to proceed, any other key to return to main menu:
+		echo 
+		read vcheck
+
+		if [[ ! "$vcheck" == "y" ]]; then
+			mainMenu
+		fi
+
+		clear
+		echo \#\#\# Repairing Permissions \#\#\#
+		echo 
+		echo "/usr/libexec/repair_packages --repair --standard-pkgs --volume /"
+		echo 
+		/usr/libexec/repair_packages --repair --standard-pkgs --volume /
+		echo 
+		echo Done.
+		sleep 3
+
+	else
+		# OS 10! Yay
+		if (( $__osMinor > 10 )); then
+			clear
+			echo \#\#\# WARNING \#\#\#
+			echo 
+			echo Your OS version is higher than 10.10.  Permissions repair
+			echo is not officially supported on El Capitan+.  The workaround
+			echo is to use /usr/libexec/repair_packages.  This is not a
+			echo guaranteed procedure.  Proceed at your own risk...
+			echo 
+			echo Press Y to proceed, any other key to return to main menu...
+			echo 
+			read vcheck
+
+			if [[ ! "$vcheck" == "y" ]]; then
+				mainMenu
+			fi
+
+			clear
+			echo \#\#\# Repairing Permissions \#\#\#
+			echo 
+			echo "/usr/libexec/repair_packages --repair --standard-pkgs --volume /"
+			echo 
+			/usr/libexec/repair_packages --repair --standard-pkgs --volume /
+			echo 
+			echo Done.
+			sleep 3
+		else
+			# OS 10.lessthan11 yay!
+			clear
+			echo \#\#\# Repairing Permissions \#\#\#
+			echo 
+			echo "diskutil repairPermissions /"
+			echo 
+			diskutil repairPermissions /
+			echo 
+			echo Done.
+			sleep 3
+		fi
+	fi
+mainMenu
+	
+}
+
+function trimWhitespace () {
+	# Trim leading and trailing whitespace
+    local var=$1
+    var=${var##+([[:space:]])}
+    var=${var%%+([[:space:]])}
+    echo -n "$var"
 }
 
 function mainHelp () {
@@ -140,6 +240,19 @@ function mainHelp () {
 	echo useful if you want to hide certain partitions
 	echo \(specifically Recover Partitions\) from Clover so
 	echo they don\'t clutter up your Clover boot screen.
+	echo 
+	read -p "Press [enter] to display option 4..."
+	clear
+	echo \#\#\# Main Menu Help \#\#\#
+	echo 
+	echo 4. Repair Permissions - This option will get the
+	echo current OS version, and decide what method of permission
+	echo repair is best.  For 10.0 - 10.10, it is via diskutil,
+	echo however, starting with El Capitan, it requires
+	echo repair_packages.  As of now, it is unknown if the new
+	echo method will work in OS versions newer than 10.11.  In
+	echo the event this script is run on an OS greater than 10.11
+	echo it will attempt the repair_packages command.
 	echo 
 	read -p "Press [enter] to return to the main menu..."
 	mainMenu
@@ -170,7 +283,6 @@ function installerMenu () {
 	echo 
 	read menuChoice
 
-	shopt -s nocasematch
 	if [[ "$menuChoice" == "m" ]]; then
 		mainMenu
 	elif [[ "$menuChoice" == "q" ]]; then
@@ -242,7 +354,6 @@ function expertInstallMenu () {
 	echo 
 	read menuChoice
 
-	shopt -s nocasematch
 	if [[ "$menuChoice" == "1" ]]; then
 		createUSB
 	elif [[ "$menuChoice" == "2" ]]; then
@@ -341,7 +452,6 @@ function chooseInstall () {
 	echo 
 	read menuChoice
 
-	shopt -s nocasematch
 	if [[ "$menuChoice" == "i" ]]; then
 		installerMenu
 	elif [[ "$menuChoice" == "m" ]]; then
@@ -406,7 +516,6 @@ function manualInstallerName () {
 	local i=$(( ${#installerName} - 4 ))
 	local __nameCheck="${installerName:$i:4}"
 
-	shopt -s nocasematch
 	if [[ ! "$__nameCheck" == ".app" ]]; then
 		installerName="$installerName"".app"
 	fi
@@ -609,7 +718,6 @@ function installClover () {
 	do
 		local __tempEntry="$(basename "$entry" )"
 		local __currentFile=${__tempEntry:0:6}
-		shopt -s nocasematch
 		if [[ "$__currentFile" == "Clover" ]]; then
 			i="$( expr $i + 1 )"
 			cloverList[$i]="$(basename "$entry" )"
@@ -675,7 +783,6 @@ function copyConfig () {
 	do
 		local __tempEntry="$(basename "$entry" )"
 		local __currentFile=${__tempEntry:0:6}
-		shopt -s nocasematch
 		if [[ "$__currentFile" == "config" ]]; then
 			i="$( expr $i + 1 )"
 			configList[$i]="$(basename "$entry" )"
@@ -720,7 +827,6 @@ function copyHFS () {
 	do
 		local __tempEntry="$(basename "$entry" )"
 		local __currentFile=${__tempEntry:0:7}
-		shopt -s nocasematch
 		if [[ "$__currentFile" == "HFSPlus" ]]; then
 			i="$( expr $i + 1 )"
 			hfsList[$i]="$(basename "$entry" )"
@@ -979,7 +1085,6 @@ function copyKexts () {
 	do
 		# Let's get the extension of the file
 		local extension=$([[ "$entry" = *.* ]] && echo ".${entry##*.}" || echo '')
-		shopt -s nocasematch
 		if [[ "$extension" == ".kext" ]]; then
 			# We found a kext, let's show it
 			copyToAndSetPermissions "$entry" "$kextLocation/$installerVersion" "$(baseName "$entry" )" "$kextOwner" "$kextModes"
@@ -1390,7 +1495,6 @@ function diskInfo () {
 
 # Check if we restarted due to needing sudo permissions
 # and go from there...
-shopt -s nocasematch
 
 # Check if we include os version and etc
 if [[ "$2" != "" ]]; then
@@ -1412,6 +1516,8 @@ elif [[ "$1" == "VBox" ]]; then
 	removeVBox
 elif [[ "$1" == "Kexts" ]]; then
 	copyKexts
+elif [[ "$1" == "Permissions" ]]; then
+	repairPermissions
 else
 	displayWarning
 fi
