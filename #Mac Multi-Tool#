@@ -163,7 +163,6 @@ function repairPermissions () {
 		/usr/libexec/repair_packages --repair --standard-pkgs --volume /
 		echo 
 		echo Done.
-		sleep 3
 
 	else
 		# OS 10! Yay
@@ -192,7 +191,6 @@ function repairPermissions () {
 			/usr/libexec/repair_packages --repair --standard-pkgs --volume /
 			echo 
 			echo Done.
-			sleep 3
 		else
 			# OS 10.lessthan11 yay!
 			clear
@@ -203,9 +201,10 @@ function repairPermissions () {
 			diskutil repairPermissions /
 			echo 
 			echo Done.
-			sleep 3
 		fi
 	fi
+echo 
+read -p "Press [enter] to return to the main menu..."
 mainMenu
 	
 }
