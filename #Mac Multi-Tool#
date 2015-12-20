@@ -102,6 +102,7 @@ function mainMenu () {
 	echo 2. Mount EFI Partition
 	echo 3. Get UUID
 	echo 4. Repair Permissions
+	echo 5. Rebuild Kext Cache
 	echo 
 	echo ?. Help
 	echo 
@@ -119,12 +120,169 @@ function mainMenu () {
 		UUIDMenu
 	elif [[ "$menuChoice" == "4" ]]; then
 		repairPermissions
+	elif [[ "$menuChoice" == "5" ]]; then
+		rebuildCache
 	elif [[ "$menuChoice" == "q" ]]; then
 		customQuit
 	elif [[ "$menuChoice" == "?" ]]; then
 		mainHelp
 	fi
 	mainMenu
+}
+
+function rebuildCache () {
+	checkRoot "Cache"
+	# This will get our OS version, then according
+	# to that, rebuild kext cache.
+
+	clear
+	echo \#\#\# RECOMMENDED \#\#\#
+	echo 
+	echo It is recommended to repair permissions BEFORE
+	echo rebuilding the kext cache.
+	echo 
+	echo Press Y to Repair Permissions first:
+	echo 
+	read pcheck
+
+	if [[ "$pcheck" == "y" ]]; then
+		isAuto="true"
+		repairPermissions
+	fi
+
+	local __osvers="$( sw_vers | grep 'ProductVersion' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g' )"
+	__osvers="$( trimWhitespace "$__osvers" )"
+	local __osMajor="$( echo "$__osvers" | cut -d . -f 1 )"	
+	local __osMinor="$( echo "$__osvers" | cut -d . -f 2 )"
+
+	if (( $__osMajor > 10 )); then
+		clear
+		echo \#\#\# WARNING \#\#\#
+		echo 
+		echo Your OS version is higher than 10!  This could either
+		echo be a mistake or you are using a script that is WAY out
+		echo of date.  Proceed at your own risk...
+		echo 
+		echo OS 10.11 used the following commands to do this:
+		echo 
+		echo sudo rm -r /System/Library/Caches/com.apple.kext.caches
+		echo 
+		echo sudo touch /System/Library/Extensions
+		echo sudo kextcache -update-volume /
+		echo 
+		echo That is the attempt we\'ll make.
+		echo 
+		echo Press Y to proceed, any other key to return to main menu:
+		echo 
+		read vcheck
+
+		if [[ ! "$vcheck" == "y" ]]; then
+			mainMenu
+		fi
+
+		clear
+		echo \#\#\# Rebuilding Kext Cache \#\#\#
+		echo 
+		echo sudo rm -r /System/Library/Caches/com.apple.kext.caches
+		echo 
+		echo sudo touch /System/Library/Extensions
+		echo sudo kextcache -update-volume /
+		echo 
+
+		sudo rm -r /System/Library/Caches/com.apple.kext.caches
+		sudo touch /System/Library/Extensions
+		sudo kextcache -update-volume /
+		
+		echo 
+		echo Done.
+	else
+		# OS 10! Yay :)
+		if (( $__osMinor < 6 )); then
+			# OS 10.4/5
+			clear
+			echo \#\#\# Rebuilding Kext Cache \#\#\#
+			echo 
+			echo sudo rm -rf /System/Library/Extensions.mkext
+			echo 
+
+			sudo rm -rf /System/Library/Extensions.mkext
+		
+			echo 
+			echo Done.
+		elif (( $__osMinor < 7 )); then
+			# OS 10.6
+			clear
+			echo \#\#\# Rebuilding Kext Cache \#\#\#
+			echo 
+			echo sudo kextcache -v 1 -a i386 -a x86_64 -m /System/Library/Caches/com.apple.kext.caches/Startup/Extensions.mkext /System/Library/Extensions
+			echo 
+
+			sudo kextcache -v 1 -a i386 -a x86_64 -m /System/Library/Caches/com.apple.kext.caches/Startup/Extensions.mkext /System/Library/Extensions
+			
+			echo 
+			echo Done.
+		elif (( $__osMinor < 12 )); then
+			# OS 10.7/8/9/10/11
+			clear
+			echo \#\#\# Rebuilding Kext Cache \#\#\#
+			echo 
+			echo sudo rm -r /System/Library/Caches/com.apple.kext.caches
+			echo 
+			echo sudo touch /System/Library/Extensions
+			echo sudo kextcache -update-volume /
+			echo 
+
+			sudo rm -r /System/Library/Caches/com.apple.kext.caches
+			sudo touch /System/Library/Extensions
+			sudo kextcache -update-volume /
+		
+			echo 
+			echo Done.
+		else
+			# OS 10.12+
+			clear
+			echo \#\#\# WARNING \#\#\#
+			echo 
+			echo Your OS version is higher than 10.11.  Kext Cache rebuilding
+			echo may be different on your current OS.  The attempt this script
+			echo will make is to use:
+			echo 
+			echo sudo rm -r /System/Library/Caches/com.apple.kext.caches
+			echo 
+			echo sudo touch /System/Library/Extensions
+			echo sudo kextcache -update-volume /
+			echo 
+			echo This is not guaranteed.  Proceed at your own risk...
+			echo 
+			echo Press Y to proceed, any other key to return to main menu...
+			echo 
+			read vcheck
+
+			if [[ ! "$vcheck" == "y" ]]; then
+				mainMenu
+			fi
+
+			clear
+			echo \#\#\# Rebuilding Kext Cache \#\#\#
+			echo 
+			echo sudo rm -r /System/Library/Caches/com.apple.kext.caches
+			echo 
+			echo sudo touch /System/Library/Extensions
+			echo sudo kextcache -update-volume /
+			echo 
+
+			sudo rm -r /System/Library/Caches/com.apple.kext.caches
+			sudo touch /System/Library/Extensions
+			sudo kextcache -update-volume /
+		
+			echo 
+			echo Done.
+		fi
+	fi
+echo 
+read -p "Press [enter] to continue..."
+mainMenu
+	
 }
 
 function repairPermissions () {
@@ -204,8 +362,10 @@ function repairPermissions () {
 		fi
 	fi
 echo 
-read -p "Press [enter] to return to the main menu..."
-mainMenu
+read -p "Press [enter] to continue..."
+
+checkAuto
+rebuildCache
 	
 }
 
@@ -1517,6 +1677,8 @@ elif [[ "$1" == "Kexts" ]]; then
 	copyKexts
 elif [[ "$1" == "Permissions" ]]; then
 	repairPermissions
+elif [[ "$1" == "Cache" ]]; then
+	rebuildCache
 else
 	displayWarning
 fi
