@@ -80,9 +80,10 @@ function customQuit () {
 	echo by CorpNewt
 	echo 
 	echo Thanks for testing it out, for bugs/comments/complaints
-	echo send me a message on Reddit:
+	echo send me a message on Reddit, or check out my GitHub:
 	echo 
 	echo www.reddit.com/u/corpnewt
+	echo www.github.com/corpnewt
 	echo 
 	echo Have a nice day/night!
 	echo 
