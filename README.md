@@ -16,20 +16,22 @@ Certain folders will be referenced as such in the following portion:
 
 Before you can use this tool successfully, you'll want to have a few things in order:
 
+* You'll need to have an "*Install Mac OS X .app*" application for the version of OSX you are installing (10.9+)
+
 * You'll need to have a "*Clover vX.X rXXXX.pkg*" installer file located in Resources.
 Clover can be downloaded from http://sourceforge.net/projects/cloverefiboot/
 
-* * **NOTE** - You can have multiple Clover installer packages in Resources.
+ * **NOTE** - You can have multiple Clover installer packages in Resources.
 The script just looks for the "Clover" prefix when searching for them.
 
 * You'll need to have a "*config.plist*" located in *Resources*.  This config.plist should have the necessary settings to get YOUR hardware to boot.  The default plist includes these boot flags: `kext-dev-mode=1 dart=0 nv_disable=1 -v`
 
-* * **NOTE** - You can have multiple config plists in *Resources*.  The script just looks for the "*config*" prefix when searching for them.  This feature is helpful if you build installers for several different sets of hardware, you could have *config-mobo1.plist*, *config-mobo2.plist*, etc.
+ * **NOTE** - You can have multiple config plists in *Resources*.  The script just looks for the "*config*" prefix when searching for them.  This feature is helpful if you build installers for several different sets of hardware, you could have *config-mobo1.plist*, *config-mobo2.plist*, etc.
 
 * You'll need to have an "*HFSPlus.efi*" file in *Resources*.
 HFSPlus.efi can be downloaded from https://github.com/JrCs/CloverGrowerPro/tree/master/Files/HFSPlus/X64
 
-* * **NOTE** - You can have multiple HFSPlus files in Resources.  The script just looks for the "*HFSPlus*" prefix when searching for them.  I just included this in case a newer version of "*HFSPlus.efi*" emerges that may have some compatibility issues for certain hardware.
+ * **NOTE** - You can have multiple HFSPlus files in Resources.  The script just looks for the "*HFSPlus*" prefix when searching for them.  I just included this in case a newer version of "*HFSPlus.efi*" emerges that may have some compatibility issues for certain hardware.
 
 * You'll need to have the *.kext* file specific to **YOUR** hardware in *Kexts*.  The script will iterate over all the available files in the *Kexts* folder that end in "*.kext*" and will copy them to the appropriate directory on the target disk, then apply the correct owner/permissions to each.  At some point, I may rewrite parts of the script to allow for other sub folders that could be displayed as a list similar to the items above, that will allow for different kexts for different hardware, but I just haven't yet.
 
@@ -47,7 +49,7 @@ The easiest way to get started with this script is:
 * Select option 1 - "*Auto-Create USB Installer*" at the installer menu
 * Follow the remaining prompts
 
-* * **NOTE** - Some tasks require an administrator password.
+ * **NOTE** - Some tasks require an administrator password.
 
 
 ***Advanced Options***
