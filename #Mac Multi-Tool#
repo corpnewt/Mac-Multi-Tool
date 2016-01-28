@@ -401,7 +401,7 @@ function mainHelp () {
 	echo \(specifically Recover Partitions\) from Clover so
 	echo they don\'t clutter up your Clover boot screen.
 	echo 
-	read -p "Press [enter] to display option 4..."
+	read -p "Press [enter] to display options 4-5..."
 	clear
 	echo \#\#\# Main Menu Help \#\#\#
 	echo 
@@ -428,7 +428,7 @@ function installerMenu () {
 	clear
 	echo \#\#\# Mac OS X Installer Creator \#\#\#
 	echo 
-	echo If you are NOT installing Mac OS X Version: \"$installerVersion,\"
+	echo If you are NOT installing Mac OS X Version: \"$installerVersion\",
 	echo please select \"Change OS Version\".  It will ask you for the
 	echo name of the \"Install OS X\" application, and the OS version
 	echo you are trying to install.
