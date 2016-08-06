@@ -33,6 +33,13 @@ usbPart=""
 insMED=""
 insDir=""
 
+insESD=""
+insESDMount=""
+insESDIdent=""
+insBaseSystem=""
+insBaseSystemMount=""
+insBaseSystemIdent=""
+
 isAuto="false"
 
 function resetVars () {
@@ -44,6 +51,13 @@ function resetVars () {
 
 	insMED=""
 	insDir=""
+    
+    insESD=""
+    insESDMount=""
+    insESDIdent=""
+    insBaseSystem=""
+    insBaseSystemMount=""
+    insBaseSystemIdent=""
 
 	isAuto="false"
 }
@@ -520,7 +534,7 @@ function expertInstallMenu () {
 	read menuChoice
 
 	if [[ "$menuChoice" == "1" ]]; then
-		createUSB
+		pickUSBMethod
 	elif [[ "$menuChoice" == "2" ]]; then
 		installClover
 	elif [[ "$menuChoice" == "3" ]]; then
@@ -733,6 +747,252 @@ function checkAuto () {
 	if [[ "$isAuto" == "false" ]]; then
 		mainMenu
 	fi
+}
+
+function createUSBESD () {
+    checkRoot "USBESD"
+    clear
+    echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Warning!
+	echo 
+	echo Please make sure you have connected an 8GB+ \(16GB recommended\)
+	echo USB flash drive and a copy of the \"$installerName\" application to 
+	echo continue!
+	echo 
+	echo This script tested ONLY with Mac OS X 10.9+
+	echo 
+	echo 
+	read -p "Press [enter] to continue..."
+
+	clear
+
+	echo Please drag and drop the \"$installerName\" application
+	echo here or type the path:
+	echo 
+	echo Just press [enter] if \"$installerName\" is located in
+	echo /Applications/
+	echo 
+	echo 
+	read insDir
+    
+    if [ "$insDir" == "" ]; then
+		insDir="/Applications/$installerName"
+	fi
+
+	if [ ! -e "$insDir/Contents/SharedSupport/InstallESD.dmg" ]; then
+		clear
+		echo Required files were missing in the installer.
+		echo 
+		echo "$insDir/Contents/SharedSupport/InstallESD.dmg"
+		echo Does not exist.
+		echo 
+		exit
+	fi
+
+	insESD="$insDir/Contents/SharedSupport/InstallESD.dmg"
+    
+    clear
+	echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Please drag and drop \(or type the name\) the USB drive you would
+	echo like to use as the installer:
+	echo NOTE!  The USB drive will be erased and all files deleted!
+	echo 
+	ls /volumes/
+	echo 
+	echo 
+	read usb
+
+	if [[ "$( isDisk "$usb" )" != "0" ]]; then
+		if [[ "$( volumeName "$usb" )" ]]; then
+			# We have the path to the mount point
+			eraseUSBESD "$( volumeName "$usb" )"
+		else
+			# No disk available there
+			clear
+			echo \#\#\# Create USB Installer \#\#\#
+			echo 
+			echo \""$usb"\" is not a valid disk name, identifier
+			echo or mount point.
+			echo 
+			read -p "Press [enter] to return to the main menu..."
+			mainMenu
+		fi
+	else
+		# Valid disk
+		eraseUSBESD "$usb"
+	fi
+
+}
+
+function eraseUSBESD () {
+	# Set up some info for later use
+	setDisk "$1"
+
+	# Unmount the USB drive
+	clear
+	echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Unmounting "$usbName"...
+	echo 
+
+	checkMount "$usbMount"
+
+	# Reformat it to Journaled HFS+ with a GUID Partition Table
+	#clear
+	#echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Formatting disk disk"$usbDisk" to JHFS+ with GUID partition
+	echo table...
+    echo
+
+	diskutil partitionDisk /dev/disk"$usbDisk" GPT JHFS+ "$usbName" 100%
+
+	# Run the createinstallmedia program
+	#clear
+	#echo \#\#\# Create USB Installer \#\#\#
+	echo 
+	echo Creating Installer \(This will take awhile\)...
+	echo 
+	# echo "$insMED" --volume "$usbMount" --applicationpath "$insDir" --no interaction
+    #echo hdiutil attach -noverify -nobrowse "$insESD"
+	#echo 
+    
+    insESDMount="$( mountDiskImage "$insESD" )"
+
+	# "$insMED" --volume "$usbMount" --applicationpath "$insDir" --no interaction
+
+    if [ ! -e "$insESDMount/BaseSystem.dmg" ]; then
+	   echo InstallESD.dmg is missing files...
+	   hdiutil unmount -force "$insESDMount"
+       echo 
+	   exit
+    fi
+    
+    echo 
+    echo Attaching BaseSystem.dmg...
+    echo
+    
+    insBaseSystemMount="$( mountDiskImage "$insESDMount/BaseSystem.dmg" )"
+
+    echo 
+    echo Restoring OS X Base System to "$usbName"...
+    echo
+    #cp -R -p "$insBaseSystemMount/" "$usbMount"
+    asr -source "$insBaseSystemMount" -target "$usbMount" -erase -noprompt
+    
+    echo
+    
+    #Get disk info again since the volume name is most likely
+	#different than before...
+
+	local newName="$( getDiskName "$usbIdent" )"
+	if [[ "$newName" != "$usbName" ]]; then
+		echo \""$usbName"\" has been changed to \""$newName"\"...
+        echo
+        echo Renaming back to \""$usbName"\"...
+        echo
+        diskutil rename $usbIdent "$usbName"
+		# usbName="$newName"
+		echo 
+	fi
+
+	echo 
+    echo Unmounting OS X Base System...
+    echo
+    hdiutil eject -force "$insBaseSystemMount"
+    echo
+    
+    echo 
+    echo Copying Packages from OS X Base System...
+    echo
+    rm -Rf "$usbMount/System/Installation/Packages"
+    cp -R -p "$insESDMount/Packages/" "$usbMount/System/Installation/Packages/"
+    echo
+    echo Copying BaseSystem.chunklist to "$usbName"...
+    echo
+    cp -R -p "$insESDMount/BaseSystem.chunklist" "$usbMount/BaseSystem.chunklist"
+    
+    echo 
+    echo Copying BaseSystem.dmg to "$usbName"...
+    echo
+    cp -R -p "$insESDMount/BaseSystem.dmg" "$usbMount/BaseSystem.dmg"
+    echo
+    
+ 
+    echo Unmounting OS X Install ESD...
+    echo
+    hdiutil eject -force "$insESDMount"
+
+	#Get disk info again since the volume name is most likely
+	#different than before...
+	sleep 3
+	checkAuto
+}
+
+function mountDiskImage () {
+	# This function mounts the passed disk image, and
+    # returns the mount point
+	local __imagePath=$1
+    
+    echo "/Volumes/$( hdiutil attach -noverify -nobrowse "$__imagePath" | grep -i "/Volumes/" | cut -d / -f 5 )"
+}
+
+function pickUSBMethod () {
+	clear
+	echo \#\#\# Pick USB Installer Method \#\#\#
+    echo
+    echo There are two different methods to create the USB Installer:
+    echo
+    echo 1. With "createinstallmedia"
+    echo 2. Manual Copy \(old-school\)
+    echo
+    echo ?. Help
+    echo
+    echo I. Installer Menu
+    echo M. Main Menu
+    echo Q. Quit
+    echo
+    echo Please select an option:
+	echo 
+	read menuChoice
+    
+    if [[ "$menuChoice" == "i" ]]; then
+		installerMenu
+	elif [[ "$menuChoice" == "m" ]]; then
+		mainMenu
+	elif [[ "$menuChoice" == "q" ]]; then
+		customQuit
+    elif [[ "$menuChoice" == "?" ]]; then
+		pickUSBHelp
+    elif [[ "$menuChoice" == "1" ]]; then
+        createUSB
+    elif [[ "$menuChoice" == "2" ]]; then
+        createUSBESD
+    else
+        pickUSBMethod
+    fi
+
+}
+
+function pickUSBHelp () {
+	clear
+	echo \#\#\# Pick USB Installer Method Help \#\#\#
+	echo 
+	echo There are 2 methods to create the USB installer -
+    echo 1. Using the createinstallmedia binary located inside
+    echo the Install Mac OS X .app \(only valid 10.9+\).
+    echo
+    echo 2. Using ASR to restore the BaseSystem.dmg to the USB
+    echo drive - then relocate packages, move stuff around,
+    echo perform some wizardry and make it work.
+    echo This is recommended for older OSX versions - or if
+    echo using method 1 fails.
+	echo 
+	read -p "Press [enter] to return to the pick USB installer method menu..."
+	pickUSBMethod
+
 }
 
 function createUSB () {
@@ -1682,6 +1942,8 @@ if [[ "$1" == "Auto" ]]; then
 	autoCreate
 elif [[ "$1" == "USB" ]]; then
 	createUSB
+elif [[ "$1" == "USBESD" ]]; then
+    createUSBESD
 elif [[ "$1" == "Config" ]]; then
 	copyConfig
 elif [[ "$1" == "HFS" ]]; then
