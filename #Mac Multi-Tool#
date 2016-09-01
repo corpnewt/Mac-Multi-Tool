@@ -1648,7 +1648,7 @@ function showUUID () {
 		local __currentDiskUUID="$( getUUID "$__currentDisk" )"
 		local __currentDiskName="$( getDiskName "$__currentDisk" )"
 
-		echo Currend Disk Name: "$__currentDiskName"
+		echo Current Disk Name: "$__currentDiskName"
 		echo Current Disk Type: "$__currentDiskType"
 		echo UUID:
 		echo "$__currentDiskUUID"
