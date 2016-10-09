@@ -859,13 +859,15 @@ function eraseUSBESD () {
     #echo hdiutil attach -noverify -nobrowse "$insESD"
 	#echo 
     
-    insESDMount="$( mountDiskImage "$insESD" )"
+    # Get the dmg mount point and identifier - ident is so much more helpful
+    insESDIdent="$( mountDiskImage "$insESD" )"
+    insESDMount="$( getDiskMountPoint "$insESDIdent" )"
 
 	# "$insMED" --volume "$usbMount" --applicationpath "$insDir" --no interaction
 
     if [ ! -e "$insESDMount/BaseSystem.dmg" ]; then
 	   echo InstallESD.dmg is missing files...
-	   hdiutil unmount -force "$insESDMount"
+	   hdiutil unmount -force "$insESDIdent"
        echo 
 	   exit
     fi
@@ -874,7 +876,9 @@ function eraseUSBESD () {
     echo Attaching BaseSystem.dmg...
     echo
     
-    insBaseSystemMount="$( mountDiskImage "$insESDMount/BaseSystem.dmg" )"
+    # Get the dmg mount point and identifier - ident is so much more helpful
+    insBaseSystemIdent="$( mountDiskImage "$insESDMount/BaseSystem.dmg" )"
+    insBaseSystemMount="$( getDiskMountPoint "$insBaseSystemIdent" )"
 
     echo 
     echo Restoring OS X Base System to "$usbName"...
@@ -901,7 +905,7 @@ function eraseUSBESD () {
 	echo 
     echo Unmounting OS X Base System...
     echo
-    hdiutil eject -force "$insBaseSystemMount"
+    hdiutil eject -force "$insBaseSystemIdent"
     echo
     
     echo 
@@ -923,7 +927,7 @@ function eraseUSBESD () {
  
     echo Unmounting OS X Install ESD...
     echo
-    hdiutil eject -force "$insESDMount"
+    hdiutil eject -force "$insESDIdent"
 
 	#Get disk info again since the volume name is most likely
 	#different than before...
@@ -936,7 +940,9 @@ function mountDiskImage () {
     # returns the mount point
 	local __imagePath=$1
     
-    echo "/Volumes/$( hdiutil attach -noverify -nobrowse "$__imagePath" | grep -i "/Volumes/" | cut -d / -f 5 )"
+    # Old way got mount point - this way gets the identifier
+    # echo "/Volumes/$( hdiutil attach -noverify -nobrowse "$__imagePath" | grep -i "/Volumes/" | cut -d / -f 5 )"
+    echo "$( hdiutil attach -noverify -nobrowse "$__imagePath" | grep -i "/dev/disk" | tail -f -n 1 | cut -d ' ' -f 1 | cut -d '/' -f 3)"
 }
 
 function pickUSBMethod () {
